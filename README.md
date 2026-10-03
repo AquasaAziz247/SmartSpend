@@ -1,116 +1,199 @@
 # 💰 SmartSpend
 
-SmartSpend is a personal finance management application that helps users
-track expenses, manage category-based budgets, analyze spending patterns,
-and receive financial insights.
+**SmartSpend** is a full-stack personal finance management application for tracking expenses, managing category-based monthly budgets, analyzing spending patterns, and generating budget-related financial insights.
 
-The project is built using a separated frontend, backend, and database
-architecture with authentication, authorization, automated testing, and
-environment-based configuration.
+It uses a separated **Streamlit frontend → FastAPI backend → PostgreSQL database** architecture with JWT authentication, password hashing, user-level authorization, automated tests, environment-based configuration, and production deployment.
+
+## 🌐 Live Demo
+
+- **Live Application:** https://smartspend-frontend-m5rc.onrender.com
+- **Backend API:** https://smartspend-htos.onrender.com
+- **Interactive API Docs:** https://smartspend-htos.onrender.com/docs
+- **GitHub:** https://github.com/AquasaAziz247/SmartSpend
+
+> The deployed application may take a short time to wake after inactivity when using a free hosting instance.
+
+---
+
+## 🎯 Problem Statement
+
+Personal expenses can become difficult to track when spending records, monthly budgets, and spending trends are kept separately.
+
+SmartSpend provides a single application where users can:
+
+- Record and manage expenses
+- Organize spending by category
+- Set monthly category-based budgets
+- Compare budgets with actual spending
+- Analyze spending patterns
+- Receive budget-related financial insights
 
 ---
 
 ## 🚀 Features
 
-### 👤 User Authentication
+### 👤 Authentication & Authorization
 
-- User registration
-- User login
-- Password hashing using bcrypt
+- User registration and login
+- Password hashing with bcrypt
 - JWT-based authentication
 - Protected API endpoints
-- User-specific data access
+- User-specific resource access
+- Ownership checks for expenses and budgets
 
 ### 💸 Expense Management
 
-- Create expenses
-- View expenses
-- View individual expenses
-- Update expenses
-- Delete expenses
-- Filter expenses by category
+- Create, view, update, and delete expenses
+- Filter by category
 - Filter by amount range
 - Filter by date range
 - Sort expenses
-- Pagination support
+- Pagination
 
 ### 📊 Financial Analytics
-
-SmartSpend provides:
 
 - Total spending
 - Expense count
 - Average expense
-- Highest expense
-- Lowest expense
+- Highest and lowest expense
 - Category-wise spending
 - Monthly spending
 - Monthly spending trends
-- Percentage changes between months
+- Month-over-month percentage changes
 
 ### 💰 Budget Management
 
-- Create category-based budgets
-- View budgets
-- Update budgets
-- Delete budgets
+- Create, view, update, and delete category-based monthly budgets
 - Prevent duplicate budgets for the same category and month
-- Compare budget against actual spending
+- Compare budgeted amount with actual spending
 - Calculate budget utilization
 - Calculate remaining budget
 - Track budget status
 
 ### 💡 Financial Insights
 
-SmartSpend generates budget-related financial insights based on spending
-and budget utilization.
-
-Examples include:
+Budget-related insights based on spending and budget utilization, including:
 
 - Approaching budget limit
-- Budget warning
+- Budget warnings
+- Near-limit conditions
 - Over-budget alerts
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠️ Technology Stack
 
-| Layer             | Technology    |
-| ----------------- | ------------- |
-| Frontend          | Streamlit     |
-| Backend           | FastAPI       |
-| Database          | PostgreSQL    |
-| Language          | Python        |
-| Authentication    | JWT           |
-| Password Hashing  | bcrypt        |
-| API Communication | REST / HTTP   |
-| Database Driver   | psycopg2      |
-| Validation        | Pydantic      |
-| Testing           | pytest        |
-| API Testing       | HTTPX         |
-| Configuration     | python-dotenv |
-| Server            | Uvicorn       |
+| Layer | Technology |
+|---|---|
+| Language | Python |
+| Frontend | Streamlit |
+| Backend | FastAPI |
+| Database | PostgreSQL |
+| Authentication | JWT |
+| Password Hashing | bcrypt |
+| Validation | Pydantic |
+| API Communication | REST / HTTP |
+| Database Driver | psycopg2 |
+| Testing | pytest |
+| API Testing | HTTPX |
+| Configuration | python-dotenv |
+| Application Server | Uvicorn |
+| Production Backend | Render |
+| Production Database | Supabase PostgreSQL |
+| Production Frontend | Render |
 
 ---
 
 ## 🏗️ Architecture
 
 ```text
-                    SmartSpend
-                         │
-          ┌──────────────┼──────────────┐
-          ↓              ↓              ↓
-      Frontend         Backend       Database
-     Streamlit         FastAPI      PostgreSQL
-          │              │              │
-          │     HTTP     │              │
-          └─────────────→│              │
-                         │              │
-                  Business Logic        │
-                         │              │
-                         └─────────────→│
-                                        │
-                              Data Storage
+                         🌐 User
+                           │
+                           ▼
+                 ┌────────────────────┐
+                 │     Streamlit      │
+                 │      Frontend      │
+                 └─────────┬──────────┘
+                           │ HTTP
+                           │ JWT
+                           ▼
+                 ┌────────────────────┐
+                 │      FastAPI       │
+                 │      Backend       │
+                 ├────────────────────┤
+                 │ Authentication     │
+                 │ Authorization      │
+                 │ Expenses           │
+                 │ Analytics          │
+                 │ Budgets            │
+                 │ Financial Insights │
+                 └─────────┬──────────┘
+                           │
+                           ▼
+                 ┌────────────────────┐
+                 │     PostgreSQL     │
+                 │      Database      │
+                 └────────────────────┘
+```
+
+### Request flow
+
+```text
+User
+  ↓
+Streamlit UI
+  ↓
+HTTP request
+  ↓
+FastAPI
+  ↓
+JWT authentication
+  ↓
+Authorization / ownership checks
+  ↓
+Database operations
+  ↓
+JSON response
+  ↓
+Streamlit UI
+```
+
+---
+
+## 🗄️ Database Design
+
+The application uses PostgreSQL with the main application tables:
+
+```text
+users
+ ├── id
+ ├── name
+ ├── email
+ └── password_hash
+
+expenses
+ ├── id
+ ├── user_id
+ ├── amount
+ ├── category
+ ├── description
+ └── expense_date
+
+budgets
+ ├── id
+ ├── user_id
+ ├── category
+ ├── amount
+ ├── month
+ └── year
+```
+
+Expenses and budgets are associated with users so that authenticated users access only their own financial resources.
+
+The database schema is stored in:
+
+```text
+database/schema.sql
 ```
 
 ---
@@ -119,766 +202,375 @@ Examples include:
 
 SmartSpend exposes a REST API through FastAPI.
 
-The API supports user authentication, expense management, financial
-analytics, budget management, and financial insights.
+### Authentication
 
-### 🔐 Authentication
+| Method | Endpoint | Auth |
+|---|---|---|
+| POST | `/users/register` | Public |
+| POST | `/users/login` | Public |
 
-#### Register User
+### Expenses
 
-````text
-POST /users/register
+| Method | Endpoint | Auth |
+|---|---|---|
+| POST | `/expenses` | JWT |
+| GET | `/expenses` | JWT |
+| GET | `/expenses/{expense_id}` | JWT |
+| PUT | `/expenses/{expense_id}` | JWT |
+| DELETE | `/expenses/{expense_id}` | JWT |
 
+### Analytics
 
-```text
-POST /users/register
+| Method | Endpoint | Auth |
+|---|---|---|
+| GET | `/analytics/summary` | JWT |
+| GET | `/analytics/categories` | JWT |
+| GET | `/analytics/monthly` | JWT |
+| GET | `/analytics/trends` | JWT |
 
-Creates a new SmartSpend user account.
+### Budgets
 
-Request body:
+| Method | Endpoint | Auth |
+|---|---|---|
+| POST | `/budgets` | JWT |
+| GET | `/budgets` | JWT |
+| PUT | `/budgets/{budget_id}` | JWT |
+| DELETE | `/budgets/{budget_id}` | JWT |
+| GET | `/budgets/comparison` | JWT |
 
-{
-  "name": "John Doe",
-  "email": "john@example.com",
-  "password": "securepassword"
-}
+### Insights
 
-The password is securely hashed before being stored in the database.
+| Method | Endpoint | Auth |
+|---|---|---|
+| GET | `/insights` | JWT |
 
-Login User
-POST /users/login
+### Interactive documentation
 
-Authenticates an existing user and returns a JWT access token.
+FastAPI provides Swagger UI:
 
-The login request uses form-based authentication:
+**Production:** https://smartspend-htos.onrender.com/docs
 
-username=<email>
-password=<password>
-
-Successful response:
-
-{
-  "access_token": "<JWT>",
-  "token_type": "bearer"
-}
-💸 Expense Management
-
-All expense endpoints require authentication.
-
-Create Expense
-POST /expenses
-
-Creates an expense for the currently authenticated user.
-
-Example request:
-
-{
-  "amount": 500.00,
-  "category": "Food",
-  "description": "Lunch",
-  "expense_date": "2026-09-08"
-}
-
-The user ID is obtained from the authenticated JWT rather than being
-provided by the client.
-
-Get Expenses
-GET /expenses
-
-Returns expenses belonging to the authenticated user.
-
-Supports filtering, sorting, and pagination.
-
-Available query parameters include:
-
-category
-min_amount
-max_amount
-start_date
-end_date
-sort_by
-sort_order
-limit
-offset
-Get Expense
-GET /expenses/{expense_id}
-
-Returns a specific expense belonging to the authenticated user.
-
-Update Expense
-PUT /expenses/{expense_id}
-
-Updates an existing expense belonging to the authenticated user.
-
-Delete Expense
-DELETE /expenses/{expense_id}
-
-Deletes an expense belonging to the authenticated user.
-
-📊 Analytics
-
-All analytics endpoints require authentication.
-
-Spending Summary
-GET /analytics/summary
-
-Returns:
-
-Total spending
-Expense count
-Average expense
-Highest expense
-Lowest expense
-Category Analytics
-GET /analytics/categories
-
-Returns spending grouped by category, including:
-
-Category
-Total spending
-Expense count
-Monthly Analytics
-GET /analytics/monthly
-
-Returns monthly spending totals.
-
-Spending Trends
-GET /analytics/trends
-
-Returns monthly spending trends, including:
-
-Year
-Month
-Total spending
-Change from previous month
-Percentage change
-💰 Budget Management
-
-All budget endpoints require authentication.
-
-Create Budget
-POST /budgets
-
-Creates a category-based monthly budget.
-
-Example:
-
-{
-  "category": "Food",
-  "amount": 5000.00,
-  "month": 9,
-  "year": 2026
-}
-Get Budgets
-GET /budgets
-
-Returns budgets belonging to the authenticated user.
-
-Update Budget
-PUT /budgets/{budget_id}
-
-Updates an existing budget belonging to the authenticated user.
-
-Delete Budget
-DELETE /budgets/{budget_id}
-
-Deletes an existing budget belonging to the authenticated user.
-
-Budget Comparison
-GET /budgets/comparison
-
-Compares budgeted amounts with actual spending.
-
-The response includes information such as:
-
-Budget amount
-Actual spending
-Budget utilization
-Remaining budget
-Budget status
-Month
-Year
-
-Budget status can indicate whether spending is:
-
-Healthy
-Watch
-Near Limit
-Over Budget
-💡 Financial Insights
-Get Financial Insights
-GET /insights
-
-Generates financial insights based on budget utilization.
-
-Possible insight types include:
-
-budget_warning
-budget_near_limit
-over_budget
-
-Insights can have different severity levels, including warnings and
-critical over-budget notifications.
-
-🔑 API Authentication
-
-Protected endpoints require a JWT access token.
-
-The token is sent using the HTTP Authorization header:
-
-Authorization: Bearer <JWT>
-
-Example:
-
-GET /expenses
-Authorization: Bearer eyJ...
-
-FastAPI validates the token before allowing access to protected
-resources.
-
-The authenticated user's ID is extracted from the JWT and used to
-enforce ownership of expenses and budgets.
-
-🛡️ Authorization
-
-Authentication determines who the user is.
-
-Authorization determines which resources the user can access.
-
-SmartSpend applies ownership checks to user-specific resources.
-
-For example:
-
-User A
-  ↓
-GET /expenses/15
-  ↓
-Is expense 15 owned by User A?
-  ↓
-Yes → Return expense
-No  → Reject request
-
-This prevents one authenticated user from accessing another user's
-financial data.
-
-📚 Interactive API Documentation
-
-FastAPI automatically provides interactive API documentation.
-
-When running SmartSpend locally:
-
-http://127.0.0.1:8000/docs
-
-The Swagger UI can be used to:
-
-Explore available endpoints
-View request schemas
-View response schemas
-Authorize with a JWT
-Send test requests
-Inspect API responses
-
-A second documentation format is also available through FastAPI's
-OpenAPI documentation.
-
-📋 API Endpoint Summary
-Method	Endpoint	Authentication
-POST	/users/register	Public
-POST	/users/login	Public
-POST	/expenses	JWT
-GET	/expenses	JWT
-GET	/expenses/{expense_id}	JWT
-PUT	/expenses/{expense_id}	JWT
-DELETE	/expenses/{expense_id}	JWT
-GET	/analytics/summary	JWT
-GET	/analytics/categories	JWT
-GET	/analytics/monthly	JWT
-GET	/analytics/trends	JWT
-POST	/budgets	JWT
-GET	/budgets	JWT
-PUT	/budgets/{budget_id}	JWT
-DELETE	/budgets/{budget_id}	JWT
-GET	/budgets/comparison	JWT
-GET	/insights	JWT
-
-### ⚠️ Important
-
-Notice that I did **not** add endpoints that aren't part of your actual API. The documentation follows your current endpoint structure.
-
-Also, the distinction between:
-
-```text
-Authentication → Who are you?
-Authorization  → What are you allowed to access?
-
-is particularly important for your interview explanation.
-
-Step 2: Save
-
-After replacing that section:
-
-Ctrl + S
-
-Then run:
-
-git diff --check
-
-If there is no output, the Markdown change has no whitespace problems.
-
-Then run:
-
-git status
-
-You should see only:
-
-modified: README.md
-🛑 Don't commit yet
-
-Send me the git status result after saving. I'll check that only the README changed, then we'll commit and push the API documentation to GitHub.
-
-After that, 7.12 will be complete, and we'll return to 7.13 Deployment Platform Setup, where we can finally start evaluating the current backend hosting options. 🚀
-
-# 💰 SmartSpend
-
-SmartSpend is a personal finance management application that helps users
-track expenses, manage category-based budgets, analyze spending patterns,
-and receive financial insights.
-
-The project is built using a separated frontend, backend, and database
-architecture with authentication, authorization, automated testing, and
-environment-based configuration.
+**Local:** `http://127.0.0.1:8000/docs`
 
 ---
 
-## 🚀 Features
+## 🔐 Security
 
-### 👤 User Authentication
+SmartSpend uses several application-level security controls:
 
-- User registration
-- User login
-- Password hashing using bcrypt
-- JWT-based authentication
-- Protected API endpoints
-- User-specific data access
+- Passwords are hashed using bcrypt rather than stored as plaintext.
+- JWT access tokens protect authenticated API endpoints.
+- Protected endpoints require authentication.
+- User IDs are derived from authenticated JWTs rather than trusted client input.
+- User-specific resources use ownership checks.
+- Database operations use parameterized queries.
+- Production secrets are supplied through environment variables.
+- `.env` and `.env.production` are excluded from Git.
+- Invalid authentication returns `401 Unauthorized`.
+- Invalid request data is validated and can return `422 Unprocessable Entity`.
+- Requests for non-existent resources can return `404 Not Found`.
 
-### 💸 Expense Management
-
-- Create expenses
-- View expenses
-- View individual expenses
-- Update expenses
-- Delete expenses
-- Filter expenses by category
-- Filter by amount range
-- Filter by date range
-- Sort expenses
-- Pagination support
-
-### 📊 Financial Analytics
-
-SmartSpend provides:
-
-- Total spending
-- Expense count
-- Average expense
-- Highest expense
-- Lowest expense
-- Category-wise spending
-- Monthly spending
-- Monthly spending trends
-- Percentage changes between months
-
-### 💰 Budget Management
-
-- Create category-based budgets
-- View budgets
-- Update budgets
-- Delete budgets
-- Prevent duplicate budgets for the same category and month
-- Compare budget against actual spending
-- Calculate budget utilization
-- Calculate remaining budget
-- Track budget status
-
-### 💡 Financial Insights
-
-SmartSpend generates budget-related financial insights based on spending
-and budget utilization.
-
-Examples include:
-
-- Approaching budget limit
-- Budget warning
-- Over-budget alerts
+No production database password or JWT secret is stored in the repository.
 
 ---
 
-## 🛠️ Tech Stack
-
-| Layer             | Technology    |
-| ----------------- | ------------- |
-| Frontend          | Streamlit     |
-| Backend           | FastAPI       |
-| Database          | PostgreSQL    |
-| Language          | Python        |
-| Authentication    | JWT           |
-| Password Hashing  | bcrypt        |
-| API Communication | REST / HTTP   |
-| Database Driver   | psycopg2      |
-| Validation        | Pydantic      |
-| Testing           | pytest        |
-| API Testing       | HTTPX         |
-| Configuration     | python-dotenv |
-| Server            | Uvicorn       |
-
----
-
-## 🏗️ Architecture
-
-
-text
-                    SmartSpend
-                         │
-          ┌──────────────┼──────────────┐
-          ↓              ↓              ↓
-      Frontend         Backend       Database
-     Streamlit         FastAPI      PostgreSQL
-          │              │              │
-          │     HTTP     │              │
-          └─────────────→│              │
-                         │              │
-                  Business Logic        │
-                         │              │
-                         └─────────────→│
-                                        │
-                              Data Storage
-
-
-
-
-this is current readme
-Compare with other AI
-Liner
-Gemini
-Claude
-
-Yes 👍 I can see the current README exactly. Your first sections are already in place and look good:
-
-# SmartSpend
-├── Overview
-├── Features
-├── Tech Stack
-└── Architecture
-
-The architecture diagram is also properly inside the text code block. ✅
-
-One important thing
-
-Your README currently ends after the Architecture diagram.
-
-So for 7.12 API Documentation, we should not replace the whole README. We simply need to continue after this line:
-
-                              Data Storage
-
-and the closing:
-
-````
-
-## Add this immediately after it
-
-## 📡 API Documentation
-
-SmartSpend exposes a REST API through FastAPI.
-
-The API supports user authentication, expense management, financial
-analytics, budget management, and financial insights.
-
-### 🔐 Authentication
-
-#### Register User
-
-````text
-POST /users/register
-
-Creates a new SmartSpend user account.
-
-Request body:
-
-{
-  "name": "John Doe",
-  "email": "john@example.com",
-  "password": "securepassword"
-}
-
-The password is securely hashed before being stored in the database.
-
-Login User
-POST /users/login
-
-Authenticates an existing user and returns a JWT access token.
-
-The login request uses form-based authentication:
-
-username=<email>
-password=<password>
-
-Successful response:
-
-{
-  "access_token": "<JWT>",
-  "token_type": "bearer"
-}
-💸 Expense Management
-
-All expense endpoints require authentication.
-
-Create Expense
-POST /expenses
-
-Creates an expense for the currently authenticated user.
-
-Example request:
-
-{
-  "amount": 500.00,
-  "category": "Food",
-  "description": "Lunch",
-  "expense_date": "2026-09-08"
-}
-
-The user ID is obtained from the authenticated JWT rather than being
-provided by the client.
-
-Get Expenses
-GET /expenses
-
-Returns expenses belonging to the authenticated user.
-
-Supports filtering, sorting, and pagination.
-
-Available query parameters include:
-
-category
-min_amount
-max_amount
-start_date
-end_date
-sort_by
-sort_order
-limit
-offset
-Get Expense
-GET /expenses/{expense_id}
-
-Returns a specific expense belonging to the authenticated user.
-
-Update Expense
-PUT /expenses/{expense_id}
-
-Updates an existing expense belonging to the authenticated user.
-
-Delete Expense
-DELETE /expenses/{expense_id}
-
-Deletes an expense belonging to the authenticated user.
-
-📊 Analytics
-
-All analytics endpoints require authentication.
-
-Spending Summary
-GET /analytics/summary
-
-Returns:
-
-Total spending
-Expense count
-Average expense
-Highest expense
-Lowest expense
-Category Analytics
-GET /analytics/categories
-
-Returns spending grouped by category, including:
-
-Category
-Total spending
-Expense count
-Monthly Analytics
-GET /analytics/monthly
-
-Returns monthly spending totals.
-
-Spending Trends
-GET /analytics/trends
-
-Returns monthly spending trends, including:
-
-Year
-Month
-Total spending
-Change from previous month
-Percentage change
-💰 Budget Management
-
-All budget endpoints require authentication.
-
-Create Budget
-POST /budgets
-
-Creates a category-based monthly budget.
-
-Example:
-
-{
-  "category": "Food",
-  "amount": 5000.00,
-  "month": 9,
-  "year": 2026
-}
-Get Budgets
-GET /budgets
-
-Returns budgets belonging to the authenticated user.
-
-Update Budget
-PUT /budgets/{budget_id}
-
-Updates an existing budget belonging to the authenticated user.
-
-Delete Budget
-DELETE /budgets/{budget_id}
-
-Deletes an existing budget belonging to the authenticated user.
-
-Budget Comparison
-GET /budgets/comparison
-
-Compares budgeted amounts with actual spending.
-
-The response includes:
-
-Budget amount
-Actual spending
-Budget utilization
-Remaining budget
-Budget status
-Month
-Year
-
-Budget status can indicate:
-
-Healthy
-Watch
-Near Limit
-Over Budget
-💡 Financial Insights
-Get Financial Insights
-GET /insights
-
-Generates financial insights based on budget utilization.
-
-Possible insight types include:
-
-budget_warning
-budget_near_limit
-over_budget
-
-Insights can have different severity levels, including warnings and
-critical over-budget notifications.
-
-🔑 API Authentication
-
-Protected endpoints require a JWT access token.
-
-The token is sent using the HTTP Authorization header:
-
-Authorization: Bearer <JWT>
-
-Example:
-
-GET /expenses
-Authorization: Bearer eyJ...
-
-FastAPI validates the token before allowing access to protected
-resources.
-
-The authenticated user's ID is extracted from the JWT and used to
-enforce ownership of expenses and budgets.
-
-🛡️ Authorization
-
-Authentication determines who the user is.
-
-Authorization determines which resources the user can access.
-
-SmartSpend applies ownership checks to user-specific resources.
-
-For example:
-
-User A
-  ↓
-GET /expenses/15
-  ↓
-Is expense 15 owned by User A?
-  ↓
-Yes → Return expense
-No  → Reject request
-
-This prevents one authenticated user from accessing another user's
-financial data.
-
-📚 Interactive API Documentation
-
-FastAPI provides interactive API documentation.
-
-When running SmartSpend locally:
-
-http://127.0.0.1:8000/docs
-
-Swagger UI can be used to:
-
-Explore available endpoints
-View request schemas
-View response schemas
-Authorize with a JWT
-Send test requests
-Inspect API responses
-📋 API Endpoint Summary
-Method	Endpoint	Authentication
-POST	/users/register	Public
-POST	/users/login	Public
-POST	/expenses	JWT
-GET	/expenses	JWT
-GET	/expenses/{expense_id}	JWT
-PUT	/expenses/{expense_id}	JWT
-DELETE	/expenses/{expense_id}	JWT
-GET	/analytics/summary	JWT
-GET	/analytics/categories	JWT
-GET	/analytics/monthly	JWT
-GET	/analytics/trends	JWT
-POST	/budgets	JWT
-GET	/budgets	JWT
-PUT	/budgets/{budget_id}	JWT
-DELETE	/budgets/{budget_id}	JWT
-GET	/budgets/comparison	JWT
-GET	/insights	JWT
-
-### Then continue with your existing sections
-
-After the API section, we should have:
-
-```text
-## 🗄️ Database Design
-## 🧪 Testing
 ## 📁 Project Structure
-## ⚙️ Installation
-## 🔑 Environment Variables
-## ▶️ Running the Application
+
+```text
+SmartSpend/
+│
+├── backend/
+│   ├── main.py
+│   ├── security.py
+│   ├── db.py
+│   ├── schemas.py
+│   └── insights.py
+│
+├── frontend/
+│   ├── app.py
+│   ├── api.py
+│   └── pages/
+│       ├── about.py
+│       ├── analytics.py
+│       ├── budget.py
+│       ├── expenses.py
+│       ├── login.py
+│       └── register.py
+│
+├── database/
+│   └── schema.sql
+│
+├── tests/
+│   ├── conftest.py
+│   ├── test_api.py
+│   ├── test_auth.py
+│   ├── test_authorization.py
+│   ├── test_budgets.py
+│   ├── test_expenses.py
+│   ├── test_insights.py
+│   ├── test_integration.py
+│   └── test_validation.py
+│
+├── .env.example
+├── .gitignore
+├── README.md
+└── requirements.txt
+```
+
+---
+
+## ⚙️ Local Setup
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/AquasaAziz247/SmartSpend.git
+cd SmartSpend
+```
+
+### 2. Create a virtual environment
+
+Windows PowerShell:
+
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+```
+
+### 3. Install dependencies
+
+```powershell
+pip install -r requirements.txt
+```
+
+### 4. Configure environment variables
+
+Create a local `.env` file based on `.env.example`.
+
+Required backend variables:
+
+```env
+DB_HOST=your_database_host
+DB_PORT=5432
+DB_NAME=your_database_name
+DB_USER=your_database_user
+DB_PASSWORD=your_database_password
+JWT_SECRET_KEY=your_jwt_secret
+```
+
+Frontend configuration:
+
+```env
+API_BASE_URL=http://127.0.0.1:8000
+```
+
+Never commit `.env` or production secrets.
+
+### 5. Start the FastAPI backend
+
+```powershell
+uvicorn backend.main:app --reload
+```
+
+Backend:
+
+```text
+http://127.0.0.1:8000
+```
+
+Swagger:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+### 6. Start the Streamlit frontend
+
+Open another terminal:
+
+```powershell
+streamlit run frontend/app.py
+```
+
+---
+
+## 🧪 Testing
+
+SmartSpend includes automated tests covering authentication, authorization, expenses, budgets, analytics, insights, validation, and integration behavior.
+
+Run:
+
+```powershell
+python -m pytest
+```
+
+The production-readiness regression run completed with:
+
+```text
+79 passed
+```
+
+Additional production checks verified:
+
+- Registration
+- Login
+- JWT authentication
+- Protected endpoint access
+- Logout behavior
+- Invalid credentials
+- Invalid expense input
+- Non-existent resources
+- Budget handling
+- Frontend error handling
+- Live database connectivity
+
+---
+
 ## 🌐 Deployment
+
+SmartSpend is deployed using:
+
+```text
+GitHub
+   │
+   ├── Render → Streamlit frontend
+   │
+   └── Render → FastAPI backend
+                    │
+                    ▼
+             Supabase PostgreSQL
+```
+
+### Production services
+
+**Frontend**
+
+https://smartspend-frontend-m5rc.onrender.com
+
+**Backend**
+
+https://smartspend-htos.onrender.com
+
+**API documentation**
+
+https://smartspend-htos.onrender.com/docs
+
+Production configuration is provided through hosting-platform environment variables rather than committed secrets.
+
+---
+
 ## 📸 Screenshots
+
+Screenshots can be added here to showcase the main user-facing functionality.
+
+Recommended screenshots:
+
+1. Login / registration
+2. Expense management
+3. Analytics dashboard
+4. Budget management
+5. Financial insights
+6. Swagger API documentation
+
+---
+
+## 🧠 Engineering Decisions
+
+### Separate frontend and backend
+
+Streamlit handles the user interface while FastAPI owns API behavior and business operations. This keeps presentation and backend responsibilities separated.
+
+### JWT authentication
+
+JWT allows the backend to authenticate API requests without relying on client-provided user IDs for protected resources.
+
+### PostgreSQL
+
+A relational database fits SmartSpend's structured relationships between users, expenses, and budgets.
+
+### Environment-based configuration
+
+Database credentials, JWT secrets, and API URLs are supplied through environment variables so deployment configuration can change without modifying application logic.
+
+### Automated testing
+
+The project uses pytest and HTTPX to validate application behavior and reduce regressions during development and deployment.
+
+---
+
+## 🧩 Challenges & Solutions
+
+### Local-to-production configuration
+
+**Challenge:** The application needed different database and API configuration in local and production environments.
+
+**Solution:** Environment variables were used to separate configuration from application logic.
+
+### Production database connectivity
+
+**Challenge:** The deployed backend needed reliable connectivity to hosted PostgreSQL.
+
+**Solution:** The production backend was connected to Supabase PostgreSQL using the appropriate pooled connection configuration.
+
+### Frontend/backend communication
+
+**Challenge:** The Streamlit frontend had to communicate with the deployed FastAPI backend instead of a local `localhost` API.
+
+**Solution:** The frontend uses `API_BASE_URL`, which points to the deployed FastAPI service in production.
+
+### Production regression testing
+
+**Challenge:** Local tests alone do not verify the deployed environment.
+
+**Solution:** The deployed application was tested end-to-end, including authentication, protected endpoints, expense operations, analytics, budgets, insights, validation, and error handling.
+
+---
+
 ## 🔮 Future Improvements
+
+Potential future improvements include:
+
+- Automated CI/CD pipeline
+- Role-based access control
+- More advanced spending forecasts
+- Recurring expense support
+- Exportable financial reports
+- Improved dashboard visualizations
+- Custom date-range analytics
+- More granular notification preferences
+- Production monitoring and observability
+- Custom domain deployment
+
+---
+
 ## 🎯 Project Goals
+
+SmartSpend was built to practice and demonstrate:
+
+- REST API development
+- Backend architecture
+- Authentication and authorization
+- PostgreSQL database design
+- Data validation
+- Financial analytics
+- Streamlit application development
+- Automated testing
+- Production deployment
+- Git/GitHub workflow
+- Secure environment configuration
+
+---
+
 ## 👤 Author
+
+**Aquasa Aziz**
+
+B.Tech Computer Science and Business Systems
+
+- GitHub: https://github.com/AquasaAziz247
+
+---
+
 ## 📄 License
-````
+
+This project is available for educational and portfolio purposes.
