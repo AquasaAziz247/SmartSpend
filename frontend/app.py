@@ -1,3 +1,4 @@
+
 import streamlit as st
 
 
@@ -7,6 +8,21 @@ st.set_page_config(
     layout="wide"
 )
 
+
+# ============================================================
+# SESSION INITIALIZATION
+# ============================================================
+
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+
+if "access_token" not in st.session_state:
+    st.session_state["access_token"] = None
+
+
+# ============================================================
+# HOME PAGE
+# ============================================================
 
 st.title("💰 SmartSpend")
 

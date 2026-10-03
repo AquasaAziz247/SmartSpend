@@ -1,3 +1,4 @@
+
 import streamlit as st
 
 from api import (
@@ -11,7 +12,7 @@ st.title("Login")
 
 
 # ============================================================
-# Login Form
+# LOGIN FORM
 # ============================================================
 
 with st.form("login_form"):
@@ -27,58 +28,79 @@ with st.form("login_form"):
 
 
 # ============================================================
-# Login
+# LOGIN
 # ============================================================
 
 if submitted:
 
-    if not email or not password:
+    # Validate input
+    email = email.strip()
 
+    if not email or not password:
         st.warning(
             "Please enter both email and password."
         )
-
         st.stop()
 
+    # Call login API
+    response = login_user(email, password)
 
-    response = login_user(
-        email,
-        password
-    )
+    if response is None:
+        st.error(
+            "Unable to connect to the server. "
+            "Please try again."
+        )
+        st.stop()
 
-
-    if response is not None and response.status_code == 200:
+    # Successful login
+    if response.status_code == 200:
 
         data = get_response_json(response)
 
-        if data is None:
+        # Validate response format
+        if not isinstance(data, dict):
+            st.error(
+                "Unexpected server response. "
+                "Please try again."
+            )
             st.stop()
 
-        st.session_state["access_token"] = (
-            data["access_token"]
-        )
+        access_token = data.get("access_token")
+        token_type = data.get("token_type")
 
+        if (
+            not isinstance(access_token, str)
+            or not access_token.strip()
+            or token_type != "bearer"
+        ):
+            st.error(
+                "Invalid login response. "
+                "Please try again."
+            )
+            st.stop()
+
+        # Store authentication state
+        st.session_state["access_token"] = access_token
         st.session_state["logged_in"] = True
 
         st.success("Login successful!")
 
+        st.rerun()
 
-    elif response is not None and response.status_code == 401:
-
+    # Invalid credentials
+    elif response.status_code == 401:
         st.error(
             "Invalid email or password."
         )
 
-
-    elif response is not None and response.status_code == 422:
-
+    # Validation error
+    elif response.status_code == 422:
         st.error(
             "Please enter valid login details."
         )
 
-
+    # Other API errors
     else:
-
         handle_api_error(
             response,
             "login"

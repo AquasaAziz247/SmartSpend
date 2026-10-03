@@ -1,11 +1,11 @@
+import logging
 from fastapi import FastAPI, Depends, status, HTTPException, Query
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.responses import JSONResponse
 from decimal import Decimal
 from datetime import date
 from backend.insights import generate_financial_insights
-
 from backend.db import get_db_connection
-
 from backend.schemas import (
     ExpenseCreate,
     ExpenseResponse,
@@ -22,29 +22,58 @@ from backend.schemas import (
     BudgetComparison,
     FinancialInsight
 )
-
 from backend.security import (
     hash_password,
     verify_password,
     create_access_token,
     get_current_user
 )
+logger = logging.getLogger(__name__)
 
+# ============================================================
+# DATABASE DEPENDENCY
+# ============================================================
 
 def get_db():
     connection = get_db_connection()
-
     try:
         yield connection
     finally:
         connection.close()
 
 
+# ============================================================
+# FASTAPI APPLICATION
+# ============================================================
+
 app = FastAPI(
     title="SmartSpend API",
     description="Personal finance management and analytics API",
     version="1.0.0"
 )
+
+
+# ============================================================
+# GLOBAL ERROR HANDLING
+# ============================================================
+
+@app.exception_handler(Exception)
+async def internal_server_error_handler(request, exc):
+    logger.exception(
+        "Unhandled exception while processing %s %s",
+        request.method,
+        request.url.path
+    )
+
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Internal server error"}
+    )
+
+
+# ============================================================
+# HELPER: BUILD BUDGET COMPARISONS
+# ============================================================
 
 def build_budget_comparisons(results):
     comparisons = []
@@ -60,9 +89,7 @@ def build_budget_comparisons(results):
         else:
             utilization = None
 
-        remaining_budget = (
-            budget_amount - actual_spending
-        )
+        remaining_budget = budget_amount - actual_spending
 
         if utilization is None:
             budget_status = "Not Set"
@@ -106,8 +133,29 @@ def root():
 
 
 # ============================================================
+# DATABASE HEALTH CHECK
+# ============================================================
+
+@app.get("/health")
+def health_check(connection=Depends(get_db)):
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute("SELECT 1;")
+        cursor.fetchone()
+
+        return {
+            "status": "healthy",
+            "database": "connected"
+        }
+    finally:
+        cursor.close()
+
+
+# ============================================================
 # USER REGISTRATION
 # ============================================================
+
 @app.post(
     "/users/register",
     response_model=UserResponse,
@@ -120,8 +168,6 @@ def register_user(
     cursor = connection.cursor()
 
     try:
-
-        # Check if email already exists
         cursor.execute(
             """
             SELECT id
@@ -134,13 +180,11 @@ def register_user(
         existing_user = cursor.fetchone()
 
         if existing_user is not None:
-
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
             )
 
-        # Create user
         cursor.execute(
             """
             INSERT INTO users (
@@ -159,7 +203,6 @@ def register_user(
         )
 
         created_user = cursor.fetchone()
-
         connection.commit()
 
         return {
@@ -171,11 +214,9 @@ def register_user(
     except HTTPException:
         connection.rollback()
         raise
-
     except Exception:
         connection.rollback()
         raise
-
     finally:
         cursor.close()
 
@@ -194,53 +235,47 @@ def login_user(
 ):
     cursor = connection.cursor()
 
-    cursor.execute(
-        """
-        SELECT
-            id,
-            name,
-            email,
-            password_hash
-        FROM users
-        WHERE email = %s;
-        """,
-        (user.username,)
-    )
-
-    existing_user = cursor.fetchone()
-
-    if existing_user is None:
-        cursor.close()
-
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
+    try:
+        cursor.execute(
+            """
+            SELECT
+                id,
+                name,
+                email,
+                password_hash
+            FROM users
+            WHERE email = %s;
+            """,
+            (user.username,)
         )
 
-    stored_password_hash = existing_user[3]
+        existing_user = cursor.fetchone()
 
-    if not verify_password(
-        user.password,
-        stored_password_hash
-    ):
+        if existing_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
+
+        stored_password_hash = existing_user[3]
+
+        if not verify_password(
+            user.password,
+            stored_password_hash
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
+
+        access_token = create_access_token(existing_user[0])
+
+        return {
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
+    finally:
         cursor.close()
-
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
-        )
-
-    cursor.close()
-
-    # Create JWT token
-    access_token = create_access_token(
-        existing_user[0]
-    )
-
-    return {
-        "access_token": access_token,
-        "token_type": "bearer"
-    }
 
 
 # ============================================================
@@ -260,7 +295,6 @@ def create_expense(
     cursor = connection.cursor()
 
     try:
-
         cursor.execute(
             """
             INSERT INTO expenses (
@@ -289,7 +323,6 @@ def create_expense(
         )
 
         created_expense = cursor.fetchone()
-
         connection.commit()
 
         return {
@@ -304,7 +337,6 @@ def create_expense(
     except Exception:
         connection.rollback()
         raise
-
     finally:
         cursor.close()
 
@@ -336,7 +368,6 @@ def get_expenses(
         "expense_date": "expense_date"
     }
 
-    # Validate sort column
     if sort_by not in allowed_sort_columns:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -346,7 +377,6 @@ def get_expenses(
             )
         )
 
-    # Validate sort order
     sort_order = sort_order.lower()
 
     if sort_order not in ["asc", "desc"]:
@@ -360,77 +390,69 @@ def get_expenses(
 
     cursor = connection.cursor()
 
-    query = """
-        SELECT
-            id,
-            user_id,
-            amount,
-            category,
-            description,
-            expense_date
-        FROM expenses
-    """
+    try:
+        query = """
+            SELECT
+                id,
+                user_id,
+                amount,
+                category,
+                description,
+                expense_date
+            FROM expenses
+        """
 
-    conditions = []
-    values = []
+        conditions = ["user_id = %s"]
+        values = [current_user_id]
 
-    # Always restrict results to logged-in user
-    conditions.append("user_id = %s")
-    values.append(current_user_id)
+        if category:
+            conditions.append("category = %s")
+            values.append(category)
 
-    if category:
-        conditions.append("category = %s")
-        values.append(category)
+        if min_amount is not None:
+            conditions.append("amount >= %s")
+            values.append(min_amount)
 
-    if min_amount is not None:
-        conditions.append("amount >= %s")
-        values.append(min_amount)
+        if max_amount is not None:
+            conditions.append("amount <= %s")
+            values.append(max_amount)
 
-    if max_amount is not None:
-        conditions.append("amount <= %s")
-        values.append(max_amount)
+        if start_date is not None:
+            conditions.append("expense_date >= %s")
+            values.append(start_date)
 
-    if start_date is not None:
-        conditions.append("expense_date >= %s")
-        values.append(start_date)
+        if end_date is not None:
+            conditions.append("expense_date <= %s")
+            values.append(end_date)
 
-    if end_date is not None:
-        conditions.append("expense_date <= %s")
-        values.append(end_date)
+        query += " WHERE " + " AND ".join(conditions)
 
-    query += " WHERE " + " AND ".join(conditions)
+        sort_column = allowed_sort_columns[sort_by]
 
-    sort_column = allowed_sort_columns[sort_by]
+        query += (
+            f" ORDER BY {sort_column} "
+            f"{sort_order.upper()}"
+        )
 
-    query += (
-        f" ORDER BY {sort_column} "
-        f"{sort_order.upper()}"
-    )
+        values.extend([limit, offset])
+        query += " LIMIT %s OFFSET %s"
 
-    values.extend([limit, offset])
+        cursor.execute(query, tuple(values))
+        expenses = cursor.fetchall()
 
-    query += " LIMIT %s OFFSET %s"
-
-    cursor.execute(
-        query,
-        tuple(values)
-    )
-
-    expenses = cursor.fetchall()
-
-    cursor.close()
-
-    return [
-        {
-            "id": expense[0],
-            "user_id": expense[1],
-            "amount": expense[2],
-            "category": expense[3],
-            "description": expense[4],
-            "expense_date": expense[5]
-        }
-        for expense in expenses
-    ]
+        return [
+            {
+                "id": expense[0],
+                "user_id": expense[1],
+                "amount": expense[2],
+                "category": expense[3],
+                "description": expense[4],
+                "expense_date": expense[5]
+            }
+            for expense in expenses
+        ]
+    finally:
+        cursor.close()
 
 
 # ============================================================
@@ -448,43 +470,41 @@ def get_expense(
 ):
     cursor = connection.cursor()
 
-    cursor.execute(
-        """
-        SELECT
-            id,
-            user_id,
-            amount,
-            category,
-            description,
-            expense_date
-        FROM expenses
-        WHERE id = %s
-        AND user_id = %s;
-        """,
-        (
-            expense_id,
-            current_user_id
-        )
-    )
-
-    expense = cursor.fetchone()
-
-    cursor.close()
-
-    if expense is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Expense not found"
+    try:
+        cursor.execute(
+            """
+            SELECT
+                id,
+                user_id,
+                amount,
+                category,
+                description,
+                expense_date
+            FROM expenses
+            WHERE id = %s
+            AND user_id = %s;
+            """,
+            (expense_id, current_user_id)
         )
 
-    return {
-        "id": expense[0],
-        "user_id": expense[1],
-        "amount": expense[2],
-        "category": expense[3],
-        "description": expense[4],
-        "expense_date": expense[5]
-    }
+        expense = cursor.fetchone()
+
+        if expense is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Expense not found"
+            )
+
+        return {
+            "id": expense[0],
+            "user_id": expense[1],
+            "amount": expense[2],
+            "category": expense[3],
+            "description": expense[4],
+            "expense_date": expense[5]
+        }
+    finally:
+        cursor.close()
 
 
 # ============================================================
@@ -504,7 +524,6 @@ def update_expense(
     cursor = connection.cursor()
 
     try:
-
         cursor.execute(
             """
             UPDATE expenses
@@ -536,7 +555,6 @@ def update_expense(
         updated_expense = cursor.fetchone()
 
         if updated_expense is None:
-
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Expense not found"
@@ -553,16 +571,12 @@ def update_expense(
             "expense_date": updated_expense[5]
         }
 
-    except HTTPException:
-        connection.rollback()
-        raise
-
     except Exception:
         connection.rollback()
         raise
-
     finally:
         cursor.close()
+
 
 # ============================================================
 # DELETE EXPENSE
@@ -580,21 +594,16 @@ def delete_expense(
     cursor = connection.cursor()
 
     try:
-
         cursor.execute(
             """
             DELETE FROM expenses
             WHERE id = %s
             AND user_id = %s;
             """,
-            (
-                expense_id,
-                current_user_id
-            )
+            (expense_id, current_user_id)
         )
 
         if cursor.rowcount == 0:
-
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Expense not found"
@@ -602,19 +611,12 @@ def delete_expense(
 
         connection.commit()
 
-    except HTTPException:
-
-        connection.rollback()
-        raise
-
     except Exception:
-
         connection.rollback()
         raise
-
     finally:
-
         cursor.close()
+
 
 # ============================================================
 # EXPENSE ANALYTICS SUMMARY
@@ -630,33 +632,33 @@ def get_expense_summary(
 ):
     cursor = connection.cursor()
 
-    query = """
-        SELECT
-            SUM(amount) AS total_spending,
-            COUNT(*) AS expense_count,
-            AVG(amount) AS average_expense,
-            MAX(amount) AS highest_expense,
-            MIN(amount) AS lowest_expense
-        FROM expenses
-        WHERE user_id = %s;
-    """
+    try:
+        cursor.execute(
+            """
+            SELECT
+                SUM(amount) AS total_spending,
+                COUNT(*) AS expense_count,
+                AVG(amount) AS average_expense,
+                MAX(amount) AS highest_expense,
+                MIN(amount) AS lowest_expense
+            FROM expenses
+            WHERE user_id = %s;
+            """,
+            (current_user_id,)
+        )
 
-    cursor.execute(
-        query,
-        (current_user_id,)
-    )
+        summary = cursor.fetchone()
 
-    summary = cursor.fetchone()
+        return {
+            "total_spending": summary[0],
+            "expense_count": summary[1],
+            "average_expense": summary[2],
+            "highest_expense": summary[3],
+            "lowest_expense": summary[4]
+        }
+    finally:
+        cursor.close()
 
-    cursor.close()
-
-    return {
-        "total_spending": summary[0],
-        "expense_count": summary[1],
-        "average_expense": summary[2],
-        "highest_expense": summary[3],
-        "lowest_expense": summary[4]
-    }
 
 # ============================================================
 # CATEGORY-WISE EXPENSE ANALYTICS
@@ -672,34 +674,34 @@ def get_category_summary(
 ):
     cursor = connection.cursor()
 
-    query = """
-        SELECT
-            category,
-            SUM(amount) AS total_spending,
-            COUNT(*) AS expense_count
-        FROM expenses
-        WHERE user_id = %s
-        GROUP BY category
-        ORDER BY total_spending DESC;
-    """
+    try:
+        cursor.execute(
+            """
+            SELECT
+                category,
+                SUM(amount) AS total_spending,
+                COUNT(*) AS expense_count
+            FROM expenses
+            WHERE user_id = %s
+            GROUP BY category
+            ORDER BY total_spending DESC;
+            """,
+            (current_user_id,)
+        )
 
-    cursor.execute(
-        query,
-        (current_user_id,)
-    )
+        results = cursor.fetchall()
 
-    results = cursor.fetchall()
+        return [
+            {
+                "category": row[0],
+                "total_spending": row[1],
+                "expense_count": row[2]
+            }
+            for row in results
+        ]
+    finally:
+        cursor.close()
 
-    cursor.close()
-
-    return [
-        {
-            "category": row[0],
-            "total_spending": row[1],
-            "expense_count": row[2]
-        }
-        for row in results
-    ]
 
 # ============================================================
 # MONTHLY SPENDING ANALYTICS
@@ -715,38 +717,38 @@ def get_monthly_summary(
 ):
     cursor = connection.cursor()
 
-    query = """
-        SELECT
-            EXTRACT(YEAR FROM expense_date) AS year,
-            EXTRACT(MONTH FROM expense_date) AS month,
-            SUM(amount) AS total_spending
-        FROM expenses
-        WHERE user_id = %s
-        GROUP BY
-            EXTRACT(YEAR FROM expense_date),
-            EXTRACT(MONTH FROM expense_date)
-        ORDER BY
-            EXTRACT(YEAR FROM expense_date),
-            EXTRACT(MONTH FROM expense_date);
-    """
+    try:
+        cursor.execute(
+            """
+            SELECT
+                EXTRACT(YEAR FROM expense_date) AS year,
+                EXTRACT(MONTH FROM expense_date) AS month,
+                SUM(amount) AS total_spending
+            FROM expenses
+            WHERE user_id = %s
+            GROUP BY
+                EXTRACT(YEAR FROM expense_date),
+                EXTRACT(MONTH FROM expense_date)
+            ORDER BY
+                EXTRACT(YEAR FROM expense_date),
+                EXTRACT(MONTH FROM expense_date);
+            """,
+            (current_user_id,)
+        )
 
-    cursor.execute(
-        query,
-        (current_user_id,)
-    )
+        results = cursor.fetchall()
 
-    results = cursor.fetchall()
+        return [
+            {
+                "year": int(row[0]),
+                "month": int(row[1]),
+                "total_spending": row[2]
+            }
+            for row in results
+        ]
+    finally:
+        cursor.close()
 
-    cursor.close()
-
-    return [
-        {
-            "year": int(row[0]),
-            "month": int(row[1]),
-            "total_spending": row[2]
-        }
-        for row in results
-    ]
 
 # ============================================================
 # SPENDING TRENDS
@@ -760,54 +762,48 @@ def get_spending_trends(
     current_user_id: int = Depends(get_current_user),
     connection=Depends(get_db)
 ):
-
     cursor = connection.cursor()
 
-    query = """
-        SELECT
-            EXTRACT(YEAR FROM expense_date)::int AS year,
-            EXTRACT(MONTH FROM expense_date)::int AS month,
-            SUM(amount) AS total_spending
-        FROM expenses
-        WHERE user_id = %s
-        GROUP BY
-            EXTRACT(YEAR FROM expense_date),
-            EXTRACT(MONTH FROM expense_date)
-        ORDER BY
-            EXTRACT(YEAR FROM expense_date),
-            EXTRACT(MONTH FROM expense_date);
-    """
+    try:
+        cursor.execute(
+            """
+            SELECT
+                EXTRACT(YEAR FROM expense_date)::int AS year,
+                EXTRACT(MONTH FROM expense_date)::int AS month,
+                SUM(amount) AS total_spending
+            FROM expenses
+            WHERE user_id = %s
+            GROUP BY
+                EXTRACT(YEAR FROM expense_date),
+                EXTRACT(MONTH FROM expense_date)
+            ORDER BY
+                EXTRACT(YEAR FROM expense_date),
+                EXTRACT(MONTH FROM expense_date);
+            """,
+            (current_user_id,)
+        )
 
-    cursor.execute(
-        query,
-        (current_user_id,)
-    )
-
-    results = cursor.fetchall()
-
-    cursor.close()
+        results = cursor.fetchall()
+    finally:
+        cursor.close()
 
     previous_spending = None
-
     trends = []
 
     for row in results:
-
         current_spending = row[2]
 
         if previous_spending is None:
-           change = None
-           percentage_change = None
-
+            change = None
+            percentage_change = None
         elif previous_spending == 0:
-             change = current_spending - previous_spending
-             percentage_change = None
-
+            change = current_spending - previous_spending
+            percentage_change = None
         else:
-             change = current_spending - previous_spending
-             percentage_change = (
-                 (change / previous_spending) * 100
-           )
+            change = current_spending - previous_spending
+            percentage_change = (
+                (change / previous_spending) * 100
+            )
 
         trends.append({
             "year": row[0],
@@ -820,6 +816,7 @@ def get_spending_trends(
         previous_spending = current_spending
 
     return trends
+
 
 # ============================================================
 # CREATE BUDGET
@@ -838,8 +835,6 @@ def create_budget(
     cursor = connection.cursor()
 
     try:
-
-        # Check if budget already exists
         cursor.execute(
             """
             SELECT id
@@ -860,7 +855,6 @@ def create_budget(
         existing_budget = cursor.fetchone()
 
         if existing_budget is not None:
-
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
@@ -869,7 +863,6 @@ def create_budget(
                 )
             )
 
-        # Create budget
         cursor.execute(
             """
             INSERT INTO budgets (
@@ -899,7 +892,6 @@ def create_budget(
         )
 
         created_budget = cursor.fetchone()
-
         connection.commit()
 
         return {
@@ -912,18 +904,10 @@ def create_budget(
             "created_at": created_budget[6]
         }
 
-    except HTTPException:
-
-        connection.rollback()
-        raise
-
     except Exception:
-
         connection.rollback()
         raise
-
     finally:
-
         cursor.close()
 
 
@@ -942,7 +926,6 @@ def get_budgets(
     cursor = connection.cursor()
 
     try:
-
         cursor.execute(
             """
             SELECT
@@ -976,10 +959,62 @@ def get_budgets(
             }
             for budget in budgets
         ]
-
     finally:
-
         cursor.close()
+
+
+# ============================================================
+# BUDGET VS ACTUAL SPENDING
+# Keep this route BEFORE /budgets/{budget_id}
+# ============================================================
+
+@app.get(
+    "/budgets/comparison",
+    response_model=list[BudgetComparison]
+)
+def get_budget_comparison(
+    current_user_id: int = Depends(get_current_user),
+    connection=Depends(get_db)
+):
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            """
+            SELECT
+                b.id,
+                b.user_id,
+                b.category,
+                b.amount AS budget_amount,
+                COALESCE(SUM(e.amount), 0) AS actual_spending,
+                b.month,
+                b.year
+            FROM budgets b
+            LEFT JOIN expenses e
+                ON e.user_id = b.user_id
+                AND e.category = b.category
+                AND EXTRACT(MONTH FROM e.expense_date) = b.month
+                AND EXTRACT(YEAR FROM e.expense_date) = b.year
+            WHERE b.user_id = %s
+            GROUP BY
+                b.id,
+                b.user_id,
+                b.category,
+                b.amount,
+                b.month,
+                b.year
+            ORDER BY
+                b.year DESC,
+                b.month DESC;
+            """,
+            (current_user_id,)
+        )
+
+        results = cursor.fetchall()
+        return build_budget_comparisons(results)
+    finally:
+        cursor.close()
+
 
 # ============================================================
 # UPDATE BUDGET
@@ -998,8 +1033,6 @@ def update_budget(
     cursor = connection.cursor()
 
     try:
-
-        # Check whether the budget belongs to the logged-in user
         cursor.execute(
             """
             SELECT id
@@ -1007,22 +1040,17 @@ def update_budget(
             WHERE id = %s
             AND user_id = %s;
             """,
-            (
-                budget_id,
-                current_user_id
-            )
+            (budget_id, current_user_id)
         )
 
         existing_budget = cursor.fetchone()
 
         if existing_budget is None:
-
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Budget not found"
             )
 
-        # Check for duplicate category/month/year
         cursor.execute(
             """
             SELECT id
@@ -1045,7 +1073,6 @@ def update_budget(
         duplicate_budget = cursor.fetchone()
 
         if duplicate_budget is not None:
-
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
@@ -1054,7 +1081,6 @@ def update_budget(
                 )
             )
 
-        # Update budget
         cursor.execute(
             """
             UPDATE budgets
@@ -1087,7 +1113,6 @@ def update_budget(
         updated_budget = cursor.fetchone()
 
         if updated_budget is None:
-
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Budget not found"
@@ -1105,19 +1130,13 @@ def update_budget(
             "created_at": updated_budget[6]
         }
 
-    except HTTPException:
-
-        connection.rollback()
-        raise
-
     except Exception:
-
         connection.rollback()
         raise
-
     finally:
-
         cursor.close()
+
+
 # ============================================================
 # DELETE BUDGET
 # ============================================================
@@ -1134,21 +1153,16 @@ def delete_budget(
     cursor = connection.cursor()
 
     try:
-
         cursor.execute(
             """
             DELETE FROM budgets
             WHERE id = %s
             AND user_id = %s;
             """,
-            (
-                budget_id,
-                current_user_id
-            )
+            (budget_id, current_user_id)
         )
 
         if cursor.rowcount == 0:
-
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Budget not found"
@@ -1156,70 +1170,12 @@ def delete_budget(
 
         connection.commit()
 
-    except HTTPException:
-
-        connection.rollback()
-        raise
-
     except Exception:
-
         connection.rollback()
         raise
-
     finally:
-
         cursor.close()
 
-
-# ============================================================
-# BUDGET VS ACTUAL SPENDING
-# ============================================================
-
-@app.get(
-    "/budgets/comparison",
-    response_model=list[BudgetComparison]
-)
-def get_budget_comparison(
-    current_user_id: int = Depends(get_current_user),
-    connection=Depends(get_db)
-):
-    cursor = connection.cursor()
-
-    cursor.execute(
-        """
-        SELECT
-            b.id,
-            b.user_id,
-            b.category,
-            b.amount AS budget_amount,
-            COALESCE(SUM(e.amount), 0) AS actual_spending,
-            b.month,
-            b.year
-        FROM budgets b
-        LEFT JOIN expenses e
-            ON e.user_id = b.user_id
-            AND e.category = b.category
-            AND EXTRACT(MONTH FROM e.expense_date) = b.month
-            AND EXTRACT(YEAR FROM e.expense_date) = b.year
-        WHERE b.user_id = %s
-        GROUP BY
-            b.id,
-            b.user_id,
-            b.category,
-            b.amount,
-            b.month,
-            b.year
-        ORDER BY
-            b.year DESC,
-            b.month DESC;
-        """,
-        (current_user_id,)
-    )
-
-    results = cursor.fetchall()
-    cursor.close()
-
-    return build_budget_comparisons(results)
 
 # ============================================================
 # FINANCIAL INSIGHTS
@@ -1235,42 +1191,42 @@ def get_financial_insights(
 ):
     cursor = connection.cursor()
 
-    cursor.execute(
-        """
-        SELECT
-            b.id,
-            b.user_id,
-            b.category,
-            b.amount AS budget_amount,
-            COALESCE(SUM(e.amount), 0) AS actual_spending,
-            b.month,
-            b.year
-        FROM budgets b
-        LEFT JOIN expenses e
-            ON e.user_id = b.user_id
-            AND e.category = b.category
-            AND EXTRACT(MONTH FROM e.expense_date) = b.month
-            AND EXTRACT(YEAR FROM e.expense_date) = b.year
-        WHERE b.user_id = %s
-        GROUP BY
-            b.id,
-            b.user_id,
-            b.category,
-            b.amount,
-            b.month,
-            b.year
-        ORDER BY
-            b.year DESC,
-            b.month DESC;
-        """,
-        (current_user_id,)
-    )
+    try:
+        cursor.execute(
+            """
+            SELECT
+                b.id,
+                b.user_id,
+                b.category,
+                b.amount AS budget_amount,
+                COALESCE(SUM(e.amount), 0) AS actual_spending,
+                b.month,
+                b.year
+            FROM budgets b
+            LEFT JOIN expenses e
+                ON e.user_id = b.user_id
+                AND e.category = b.category
+                AND EXTRACT(MONTH FROM e.expense_date) = b.month
+                AND EXTRACT(YEAR FROM e.expense_date) = b.year
+            WHERE b.user_id = %s
+            GROUP BY
+                b.id,
+                b.user_id,
+                b.category,
+                b.amount,
+                b.month,
+                b.year
+            ORDER BY
+                b.year DESC,
+                b.month DESC;
+            """,
+            (current_user_id,)
+        )
 
-    results = cursor.fetchall()
-    cursor.close()
+        results = cursor.fetchall()
+    finally:
+        cursor.close()
 
     budget_comparisons = build_budget_comparisons(results)
 
-    return generate_financial_insights(
-        budget_comparisons
-    )
+    return generate_financial_insights(budget_comparisons)

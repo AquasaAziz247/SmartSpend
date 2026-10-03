@@ -35,15 +35,18 @@ st.title("SmartSpend")
 st.caption("Financial Dashboard")
 
 
+
 # ============================================================
 # Authentication
 # ============================================================
 
-if "access_token" not in st.session_state:
-
+if (
+    not st.session_state.get("logged_in", False)
+    or not st.session_state.get("access_token")
+):
     st.warning("Please login first.")
-
     st.stop()
+
 
 
 # ============================================================

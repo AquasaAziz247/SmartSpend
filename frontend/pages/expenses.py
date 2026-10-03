@@ -17,15 +17,15 @@ st.title("My Expenses")
 # Authentication Check
 # ============================================================
 
-if "access_token" not in st.session_state:
-
+if (
+    not st.session_state.get("logged_in", False)
+    or not st.session_state.get("access_token")
+):
     st.warning("Please login first.")
-
     st.stop()
+
 if st.sidebar.button("🚪 Logout"):
-
     logout_user()
-
     st.rerun()
 
 # ============================================================

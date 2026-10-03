@@ -1,4 +1,6 @@
+
 import os
+from urllib.parse import urlsplit
 
 import requests
 import streamlit as st
@@ -6,10 +8,47 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BASE_URL = os.getenv(
+
+# ============================================================
+# API BASE URL CONFIGURATION AND VALIDATION
+# ============================================================
+
+raw_base_url = os.getenv(
     "API_BASE_URL",
     "http://127.0.0.1:8000",
-)
+).strip()
+
+if not raw_base_url:
+    raise ValueError(
+        "API_BASE_URL is empty. "
+        "Please configure a valid API URL."
+    )
+
+try:
+    parsed_url = urlsplit(raw_base_url)
+
+    # Accessing port also validates its format and range.
+    _ = parsed_url.port
+
+    if (
+        parsed_url.scheme not in ("http", "https")
+        or not parsed_url.hostname
+        or any(char.isspace() for char in raw_base_url)
+        or parsed_url.query
+        or parsed_url.fragment
+        or parsed_url.username is not None
+        or parsed_url.password is not None
+    ):
+        raise ValueError
+
+except ValueError:
+    raise ValueError(
+        "Invalid API_BASE_URL. "
+        "Use a valid HTTP or HTTPS URL without "
+        "credentials, query parameters or fragments."
+    ) from None
+
+BASE_URL = raw_base_url.rstrip("/")
 
 REQUEST_TIMEOUT = 10
 
@@ -19,10 +58,10 @@ REQUEST_TIMEOUT = 10
 # ============================================================
 
 def get_auth_headers():
-    if "access_token" not in st.session_state:
-        return None
+    token = st.session_state.get("access_token")
 
-    token = st.session_state["access_token"]
+    if not token:
+        return None
 
     return {
         "Authorization": f"Bearer {token}",
@@ -30,62 +69,48 @@ def get_auth_headers():
 
 
 # ============================================================
+# Centralized HTTP Request Handling
+# ============================================================
+
+def _send_request(method, endpoint, **kwargs):
+    try:
+        return requests.request(
+            method,
+            f"{BASE_URL}{endpoint}",
+            timeout=REQUEST_TIMEOUT,
+            **kwargs
+        )
+
+    except requests.exceptions.Timeout:
+        return None
+
+    except requests.exceptions.ConnectionError:
+        return None
+
+    except requests.exceptions.RequestException:
+        return None
+
+
+# ============================================================
 # Authenticated Request
 # ============================================================
 
-def authenticated_request(
-    method,
-    endpoint,
-    **kwargs
-):
-
+def authenticated_request(method, endpoint, **kwargs):
     headers = get_auth_headers()
 
     if headers is None:
         return None
 
-    if "headers" in kwargs:
-        headers.update(kwargs["headers"])
+    # Merge custom headers with authentication headers.
+    custom_headers = kwargs.pop("headers", {})
+    headers.update(custom_headers)
 
-    try:
-
-        return requests.request(
-            method,
-            f"{BASE_URL}{endpoint}",
-            headers=headers,
-            timeout=REQUEST_TIMEOUT,
-            **{
-                key: value
-                for key, value in kwargs.items()
-                if key != "headers"
-            }
-        )
-
-    except requests.exceptions.Timeout:
-
-        st.error(
-            "SmartSpend API request timed out. "
-            "Please try again."
-        )
-
-        return None
-
-    except requests.exceptions.ConnectionError:
-
-        st.error(
-            "Unable to connect to SmartSpend API. "
-            "Please make sure the backend server is running."
-        )
-
-        return None
-
-    except requests.exceptions.RequestException:
-
-        st.error(
-            "An unexpected network error occurred."
-        )
-
-        return None
+    return _send_request(
+        method,
+        endpoint,
+        headers=headers,
+        **kwargs
+    )
 
 
 # ============================================================
@@ -93,84 +118,26 @@ def authenticated_request(
 # ============================================================
 
 def login_user(email, password):
-
-    try:
-
-        return requests.post(
-            f"{BASE_URL}/users/login",
-            data={
-                "username": email,
-                "password": password
-            },
-            timeout=REQUEST_TIMEOUT
-        )
-
-    except requests.exceptions.Timeout:
-
-        st.error(
-            "SmartSpend API request timed out. "
-            "Please try again."
-        )
-
-        return None
-
-    except requests.exceptions.ConnectionError:
-
-        st.error(
-            "Unable to connect to SmartSpend API. "
-            "Please make sure the backend server is running."
-        )
-
-        return None
-
-    except requests.exceptions.RequestException:
-
-        st.error(
-            "An unexpected network error occurred."
-        )
-
-        return None
+    return _send_request(
+        "POST",
+        "/users/login",
+        data={
+            "username": email,
+            "password": password,
+        },
+    )
 
 
 def register_user(name, email, password):
-
-    try:
-
-        return requests.post(
-            f"{BASE_URL}/users/register",
-            json={
-                "name": name,
-                "email": email,
-                "password": password
-            },
-            timeout=REQUEST_TIMEOUT
-        )
-
-    except requests.exceptions.Timeout:
-
-        st.error(
-            "SmartSpend API request timed out. "
-            "Please try again."
-        )
-
-        return None
-
-    except requests.exceptions.ConnectionError:
-
-        st.error(
-            "Unable to connect to SmartSpend API. "
-            "Please make sure the backend server is running."
-        )
-
-        return None
-
-    except requests.exceptions.RequestException:
-
-        st.error(
-            "An unexpected network error occurred."
-        )
-
-        return None
+    return _send_request(
+        "POST",
+        "/users/register",
+        json={
+            "name": name,
+            "email": email,
+            "password": password,
+        },
+    )
 
 
 # ============================================================
@@ -357,24 +324,18 @@ def handle_api_error(response, action="request"):
     if response is None:
         st.error(
             "Unable to connect to SmartSpend API. "
-            "Please make sure the backend server is running."
+            "Please check your connection and try again."
         )
 
         return True
 
     if response.status_code == 401:
-        st.session_state.pop(
-            "access_token",
-            None,
-        )
-
-        st.session_state.pop(
-            "logged_in",
-            None,
-        )
+        st.session_state["access_token"] = None
+        st.session_state["logged_in"] = False
 
         st.error(
-            "Authentication failed. Please login again."
+            "Your session has expired. "
+            "Please login again."
         )
 
         return True
@@ -423,12 +384,5 @@ def handle_api_error(response, action="request"):
 # ============================================================
 
 def logout_user():
-    st.session_state.pop(
-        "access_token",
-        None,
-    )
-
-    st.session_state.pop(
-        "logged_in",
-        None,
-    )
+    st.session_state["access_token"] = None
+    st.session_state["logged_in"] = False
