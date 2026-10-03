@@ -461,16 +461,29 @@ Production configuration is provided through hosting-platform environment variab
 
 ## 📸 Screenshots
 
-Screenshots can be added here to showcase the main user-facing functionality.
+### 📊 Analytics Dashboard
 
-Recommended screenshots:
+![SmartSpend Analytics](assets/screenshots/analytics.png)
 
-1. Login / registration
-2. Expense management
-3. Analytics dashboard
-4. Budget management
-5. Financial insights
-6. Swagger API documentation
+### 💸 Expense Management
+
+![SmartSpend Expenses](assets/screenshots/expenses.png)
+
+### 💰 Budget Management
+
+![SmartSpend Budgets](assets/screenshots/budgets.png)
+
+### 💡 Financial Insights
+
+![SmartSpend Insights](assets/screenshots/insights.png)
+
+### 🔐 Authentication
+
+![SmartSpend Login](assets/screenshots/login.png)
+
+### 📡 REST API
+
+![SmartSpend Swagger API](assets/screenshots/swagger-api.png)
 
 ---
 
